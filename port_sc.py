@@ -1,22 +1,47 @@
 #!/usr/bin/python3
-from socket import *
-def port_scanner(PORT):
-    
-    print(f"[+] SCANNING FOR IP {HOST}")
-    for i in PORT:
-        if s.connect_ex((HOST,i)):
-            print(f"[-] PORT {i} CLOSED")
-        else:
-            print(f"[+] PORT {i} OPEN")
-            print(str(s.recv(1024)).strip('b'))
-if __name__=='__main__':
-    s = socket(AF_INET,SOCK_STREAM)
-    s.settimeout(5)
-    HOST = input("ENTER IP TO SCAN : ")
-    PORTS = input("ENTER NO OF PORTS TO SCAN SEPARATED BY SPACE: ")
-    print('\n')
-    PORT = PORTS.split()
-    for i in range(len(PORT)):
-        PORT[i]=int(PORT[i])
-    port_scanner(PORT)
-	
+from socket import socket, AF_INET, SOCK_STREAM, timeout as SocketTimeout
+
+
+def grab_banner(sock):
+    """Return the first bytes a service sends, or None if it stays silent."""
+    try:
+        data = sock.recv(1024)
+    except (SocketTimeout, OSError):
+        return None
+    return data.decode(errors="replace").strip() or None
+
+
+def port_scanner(host, ports, timeout=3):
+    print(f"[+] SCANNING {host}\n")
+    for port in ports:
+        # A new socket for every port: a socket can only connect once.
+        with socket(AF_INET, SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            if s.connect_ex((host, port)) != 0:
+                print(f"[-] PORT {port} CLOSED")
+                continue
+            print(f"[+] PORT {port} OPEN")
+            banner = grab_banner(s)
+            if banner:
+                print(f"    {banner}")
+
+
+def parse_ports(text):
+    ports = []
+    for item in text.split():
+        if not item.isdigit() or not 1 <= int(item) <= 65535:
+            raise ValueError(f"'{item}' is not a valid port (1-65535)")
+        ports.append(int(item))
+    if not ports:
+        raise ValueError("no ports given")
+    return ports
+
+
+if __name__ == "__main__":
+    host = input("ENTER IP TO SCAN : ").strip()
+    try:
+        ports = parse_ports(input("ENTER PORTS TO SCAN SEPARATED BY SPACE: "))
+    except ValueError as e:
+        raise SystemExit(f"[!] {e}")
+    print()
+    port_scanner(host, ports)
